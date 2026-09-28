@@ -1,30 +1,60 @@
-import { PlayerRow } from "@/components/hockey/player-row"
-import { Badge } from "@/components/ui/badge"
-import { draftPicks, roster } from "@/lib/hockey-data"
+"use client"
 
-const startingOrder: Array<{ slot: string; label: string }> = [
-  { slot: "C", label: "Center" },
-  { slot: "LW", label: "Left Wing" },
-  { slot: "RW", label: "Right Wing" },
-  { slot: "D", label: "Defense" },
-  { slot: "G", label: "Goalie" },
+import { useState } from "react"
+import { PlayerRow } from "@/components/hockey/player-row"
+import { LineupSlotDialog } from "@/components/hockey/lineup-slot-dialog"
+import { Badge } from "@/components/ui/badge"
+import { draftPicks, roster as initialRoster, type Player } from "@/lib/hockey-data"
+
+const startingOrder: Array<{ slot: Player["position"]; label: string; capacity: number }> = [
+  { slot: "C", label: "Center", capacity: 1 },
+  { slot: "LW", label: "Left Wing", capacity: 1 },
+  { slot: "RW", label: "Right Wing", capacity: 1 },
+  { slot: "D", label: "Defense", capacity: 2 },
+  { slot: "G", label: "Goalie", capacity: 1 },
 ]
 
 export function RosterSection() {
-  const starters = roster.filter((p) => startingOrder.some((s) => s.slot === p.slot))
-  const bench = roster.filter((p) => p.slot === "BN")
-  const taxi = roster.filter((p) => p.slot === "TAXI")
-  const ir = roster.filter((p) => p.slot === "IR")
+  const [rosterState, setRosterState] = useState<Player[]>(initialRoster)
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
+
+  const starters = rosterState.filter((p) => startingOrder.some((s) => s.slot === p.slot))
+  const bench = rosterState.filter((p) => p.slot === "BN")
+  const taxi = rosterState.filter((p) => p.slot === "TAXI")
+  const ir = rosterState.filter((p) => p.slot === "IR")
+
+  function handleMove(playerId: string, destSlot: Player["slot"]) {
+    setRosterState((prev) => {
+      const target = prev.find((p) => p.id === playerId)
+      if (!target) return prev
+
+      let next = prev
+
+      // If moving into a starting slot that's already at capacity, bench the
+      // longest-standing starter in that slot to make room.
+      const startingSlotInfo = startingOrder.find((s) => s.slot === destSlot)
+      if (startingSlotInfo) {
+        const currentOccupants = prev.filter((p) => p.slot === destSlot && p.id !== playerId)
+        if (currentOccupants.length >= startingSlotInfo.capacity) {
+          const bumpedId = currentOccupants[0].id
+          next = next.map((p) => (p.id === bumpedId ? { ...p, slot: "BN" } : p))
+        }
+      }
+
+      return next.map((p) => (p.id === playerId ? { ...p, slot: destSlot } : p))
+    })
+  }
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-4">
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
         <div className="border-b border-zinc-800 px-4 py-2.5">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Starting Lineup</h2>
+          <p className="text-[11px] text-zinc-500">Tap a position badge to move a player</p>
         </div>
         <div>
           {starters.map((player) => (
-            <PlayerRow key={player.id} player={player} />
+            <PlayerRow key={player.id} player={player} onEditSlot={() => setEditingPlayer(player)} />
           ))}
         </div>
       </section>
@@ -35,7 +65,7 @@ export function RosterSection() {
         </div>
         <div>
           {bench.map((player) => (
-            <PlayerRow key={player.id} player={player} />
+            <PlayerRow key={player.id} player={player} onEditSlot={() => setEditingPlayer(player)} />
           ))}
         </div>
       </section>
@@ -49,7 +79,7 @@ export function RosterSection() {
         </div>
         <div>
           {taxi.map((player) => (
-            <PlayerRow key={player.id} player={player} />
+            <PlayerRow key={player.id} player={player} onEditSlot={() => setEditingPlayer(player)} />
           ))}
         </div>
       </section>
@@ -60,7 +90,7 @@ export function RosterSection() {
         </div>
         <div>
           {ir.map((player) => (
-            <PlayerRow key={player.id} player={player} />
+            <PlayerRow key={player.id} player={player} onEditSlot={() => setEditingPlayer(player)} />
           ))}
         </div>
       </section>
@@ -75,6 +105,15 @@ export function RosterSection() {
           ))}
         </div>
       </section>
+
+      <LineupSlotDialog
+        player={editingPlayer}
+        open={editingPlayer !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingPlayer(null)
+        }}
+        onMove={handleMove}
+      />
     </div>
   )
 }
