@@ -132,9 +132,9 @@ export function PlayerDetailDialog({
 
         <ScrollArea className="max-h-[60vh]">
           <div className="p-4">
-            {tab === "overview" && <OverviewTab detail={detail} />}
+            {tab === "overview" && <OverviewTab detail={detail} isGoalie={player.position === "G"} />}
             {tab === "log" && <GameLogTab detail={detail} isGoalie={player.position === "G"} />}
-            {tab === "seasons" && <SeasonsTab detail={detail} />}
+            {tab === "seasons" && <SeasonsTab detail={detail} isGoalie={player.position === "G"} />}
             {tab === "depth" && <DepthChartTab detail={detail} team={player.team} />}
             {tab === "moves" && <TransactionsTab detail={detail} />}
           </div>
@@ -153,7 +153,13 @@ function StatBlock({ label, value }: { label: string; value: string | number }) 
   )
 }
 
-function OverviewTab({ detail }: { detail: ReturnType<typeof getPlayerDetail> }) {
+function OverviewTab({
+  detail,
+  isGoalie,
+}: {
+  detail: ReturnType<typeof getPlayerDetail>
+  isGoalie: boolean
+}) {
   const { bio, seasonTotals } = detail
   return (
     <div className="flex flex-col gap-4">
@@ -162,10 +168,23 @@ function OverviewTab({ detail }: { detail: ReturnType<typeof getPlayerDetail> })
         <div className="grid grid-cols-3 gap-2">
           <StatBlock label="Fpts" value={seasonTotals.fpts} />
           <StatBlock label="Fpts/GP" value={seasonTotals.fptsPerGame} />
-          <StatBlock label="Points" value={seasonTotals.pts} />
-          <StatBlock label="Goals" value={seasonTotals.g} />
-          <StatBlock label="Assists" value={seasonTotals.a} />
-          <StatBlock label="SOG" value={seasonTotals.sog} />
+          {isGoalie ? (
+            <>
+              <StatBlock label="Wins" value={seasonTotals.wins} />
+              <StatBlock label="Saves" value={seasonTotals.saves} />
+              <StatBlock label="GA" value={seasonTotals.ga} />
+              <StatBlock label="Shutouts" value={seasonTotals.shutouts} />
+            </>
+          ) : (
+            <>
+              <StatBlock label="Points" value={seasonTotals.pts} />
+              <StatBlock label="Goals" value={seasonTotals.g} />
+              <StatBlock label="Assists" value={seasonTotals.a} />
+              <StatBlock label="SOG" value={seasonTotals.sog} />
+              <StatBlock label="Hits" value={seasonTotals.hits} />
+              <StatBlock label="Blocks" value={seasonTotals.blk} />
+            </>
+          )}
         </div>
       </div>
       <div>
@@ -193,16 +212,28 @@ function BioRow({ label, value, className }: { label: string; value: string; cla
 
 function GameLogTab({ detail, isGoalie }: { detail: ReturnType<typeof getPlayerDetail>; isGoalie: boolean }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800">
+    <div className="overflow-x-auto rounded-xl border border-zinc-800">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-zinc-800 bg-zinc-950 text-zinc-500">
             <th className="px-2 py-2 text-left font-medium">Date</th>
             <th className="px-2 py-2 text-left font-medium">Opp</th>
             <th className="px-2 py-2 text-left font-medium">Result</th>
-            {!isGoalie && <th className="px-2 py-2 text-right font-medium">G</th>}
-            {!isGoalie && <th className="px-2 py-2 text-right font-medium">A</th>}
-            {!isGoalie && <th className="px-2 py-2 text-right font-medium">SOG</th>}
+            {isGoalie ? (
+              <>
+                <th className="px-2 py-2 text-right font-medium">Saves</th>
+                <th className="px-2 py-2 text-right font-medium">GA</th>
+                <th className="px-2 py-2 text-right font-medium">SO</th>
+              </>
+            ) : (
+              <>
+                <th className="px-2 py-2 text-right font-medium">G</th>
+                <th className="px-2 py-2 text-right font-medium">A</th>
+                <th className="px-2 py-2 text-right font-medium">SOG</th>
+                <th className="px-2 py-2 text-right font-medium">Hits</th>
+                <th className="px-2 py-2 text-right font-medium">Blk</th>
+              </>
+            )}
             <th className="px-2 py-2 text-right font-medium">TOI</th>
             <th className="px-2 py-2 text-right font-medium">Fpts</th>
           </tr>
@@ -212,12 +243,29 @@ function GameLogTab({ detail, isGoalie }: { detail: ReturnType<typeof getPlayerD
             <tr key={i} className="border-b border-zinc-800/70 last:border-b-0">
               <td className="px-2 py-2 text-zinc-400">{g.date}</td>
               <td className="px-2 py-2 text-zinc-300">{g.opp}</td>
-              <td className={cn("px-2 py-2 font-medium", g.result.startsWith("W") ? "text-emerald-400" : "text-red-400")}>
-                {g.result}
+              <td
+                className={cn(
+                  "px-2 py-2 font-medium",
+                  (isGoalie ? g.decision === "W" : g.result.startsWith("W")) ? "text-emerald-400" : "text-red-400",
+                )}
+              >
+                {isGoalie ? g.decision : g.result}
               </td>
-              {!isGoalie && <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.g}</td>}
-              {!isGoalie && <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.a}</td>}
-              {!isGoalie && <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.sog}</td>}
+              {isGoalie ? (
+                <>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.saves}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.ga}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.shutout ? "Y" : "—"}</td>
+                </>
+              ) : (
+                <>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.g}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.a}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.sog}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.hits}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.blk}</td>
+                </>
+              )}
               <td className="px-2 py-2 text-right tabular-nums text-zinc-400">{g.toi}</td>
               <td className="px-2 py-2 text-right tabular-nums font-semibold text-lime-400">{g.fpts}</td>
             </tr>
@@ -228,18 +276,31 @@ function GameLogTab({ detail, isGoalie }: { detail: ReturnType<typeof getPlayerD
   )
 }
 
-function SeasonsTab({ detail }: { detail: ReturnType<typeof getPlayerDetail> }) {
+function SeasonsTab({ detail, isGoalie }: { detail: ReturnType<typeof getPlayerDetail>; isGoalie: boolean }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800">
+    <div className="overflow-x-auto rounded-xl border border-zinc-800">
       <table className="w-full text-xs">
         <thead>
           <tr className="border-b border-zinc-800 bg-zinc-950 text-zinc-500">
             <th className="px-2 py-2 text-left font-medium">Season</th>
             <th className="px-2 py-2 text-left font-medium">Team</th>
             <th className="px-2 py-2 text-right font-medium">GP</th>
-            <th className="px-2 py-2 text-right font-medium">G</th>
-            <th className="px-2 py-2 text-right font-medium">A</th>
-            <th className="px-2 py-2 text-right font-medium">PTS</th>
+            {isGoalie ? (
+              <>
+                <th className="px-2 py-2 text-right font-medium">W</th>
+                <th className="px-2 py-2 text-right font-medium">Saves</th>
+                <th className="px-2 py-2 text-right font-medium">GA</th>
+                <th className="px-2 py-2 text-right font-medium">SO</th>
+              </>
+            ) : (
+              <>
+                <th className="px-2 py-2 text-right font-medium">G</th>
+                <th className="px-2 py-2 text-right font-medium">A</th>
+                <th className="px-2 py-2 text-right font-medium">PTS</th>
+                <th className="px-2 py-2 text-right font-medium">Hits</th>
+                <th className="px-2 py-2 text-right font-medium">Blk</th>
+              </>
+            )}
             <th className="px-2 py-2 text-right font-medium">Fpts/GP</th>
           </tr>
         </thead>
@@ -249,9 +310,22 @@ function SeasonsTab({ detail }: { detail: ReturnType<typeof getPlayerDetail> }) 
               <td className="px-2 py-2 font-medium text-white">{s.season}</td>
               <td className="px-2 py-2 text-zinc-400">{s.team}</td>
               <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.gp}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.g}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.a}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.pts}</td>
+              {isGoalie ? (
+                <>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.wins}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.saves}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.ga}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.shutouts}</td>
+                </>
+              ) : (
+                <>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.g}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.a}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.pts}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.hits}</td>
+                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.blk}</td>
+                </>
+              )}
               <td className="px-2 py-2 text-right tabular-nums font-semibold text-lime-400">{s.fptsPerGame}</td>
             </tr>
           ))}

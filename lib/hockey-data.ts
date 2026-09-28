@@ -515,6 +515,13 @@ export interface GameLogEntry {
   pts: number
   pim: number
   sog: number
+  hits: number
+  blk: number
+  saves: number
+  shotsAgainst: number
+  ga: number
+  shutout: boolean
+  decision: "W" | "L" | "OTL" | null
   toi: string
   fpts: number
 }
@@ -527,6 +534,12 @@ export interface SeasonLine {
   a: number
   pts: number
   pim: number
+  hits: number
+  blk: number
+  saves: number
+  ga: number
+  shutouts: number
+  wins: number
   fptsPerGame: number
 }
 
@@ -549,7 +562,21 @@ export interface TransactionEntry {
 
 export interface PlayerDetail {
   bio: PlayerDetailBio
-  seasonTotals: { g: number; a: number; pts: number; pim: number; sog: number; fpts: number; fptsPerGame: number }
+  seasonTotals: {
+    g: number
+    a: number
+    pts: number
+    pim: number
+    sog: number
+    hits: number
+    blk: number
+    saves: number
+    ga: number
+    shutouts: number
+    wins: number
+    fpts: number
+    fptsPerGame: number
+  }
   gameLog: GameLogEntry[]
   pastSeasons: SeasonLine[]
   depthChart: DepthChartLine[]
@@ -592,16 +619,34 @@ export function getPlayerDetail(player: PlayerLike): PlayerDetail {
   let g = 0
   let a = 0
   let sog = 0
+  let hits = 0
+  let blk = 0
+  let saves = 0
+  let ga = 0
+  let shutouts = 0
+  let wins = 0
   if (isGoalie) {
     sog = 0
     g = 0
     a = Math.floor(rng() * 3)
+    hits = 0
+    blk = 0
+    const savePct = 0.895 + rng() * 0.045
+    const shotsAgainstPerGame = 27 + rng() * 6
+    saves = Math.round(gp * shotsAgainstPerGame * savePct)
+    ga = Math.round(gp * shotsAgainstPerGame * (1 - savePct))
+    wins = Math.round(gp * (0.42 + rng() * 0.2))
+    shutouts = Math.round(gp * (0.03 + rng() * 0.06))
   } else {
     const goalRate = isDefense ? 0.08 + rng() * 0.1 : 0.15 + rng() * 0.25
     const assistRate = isDefense ? 0.2 + rng() * 0.2 : 0.2 + rng() * 0.25
     g = Math.round(gp * goalRate)
     a = Math.round(gp * assistRate)
     sog = Math.round(g * (7 + rng() * 4))
+    const hitRate = isDefense ? 1.4 + rng() * 1.2 : 0.9 + rng() * 1.1
+    const blkRate = isDefense ? 1.1 + rng() * 1.0 : 0.4 + rng() * 0.5
+    hits = Math.round(gp * hitRate)
+    blk = Math.round(gp * blkRate)
   }
   const pts = g + a
   const pim = Math.round(gp * (0.1 + rng() * 0.35))
@@ -616,15 +661,21 @@ export function getPlayerDetail(player: PlayerLike): PlayerDetail {
     const gG = isGoalie ? 0 : rng() > 0.65 ? 1 + Math.floor(rng() * 2) : 0
     const gA = isGoalie ? 0 : rng() > 0.55 ? 1 + Math.floor(rng() * 2) : 0
     const gSog = isGoalie ? 0 : 2 + Math.floor(rng() * 5)
+    const gHits = isGoalie ? 0 : Math.floor(rng() * (isDefense ? 5 : 4))
+    const gBlk = isGoalie ? 0 : Math.floor(rng() * (isDefense ? 4 : 2))
     const gPim = rng() > 0.8 ? 2 : 0
-    const teamGoalsAgainst = isGoalie ? Math.floor(rng() * 4) : 0
-    const savePct = isGoalie ? 0.88 + rng() * 0.09 : 0
+    const gShotsAgainst = isGoalie ? 22 + Math.floor(rng() * 18) : 0
+    const gSavePct = isGoalie ? 0.86 + rng() * 0.12 : 0
+    const gSaves = isGoalie ? Math.round(gShotsAgainst * gSavePct) : 0
+    const gGa = isGoalie ? gShotsAgainst - gSaves : 0
+    const gShutout = isGoalie && gGa === 0
     const win = isGoalie ? rng() > 0.42 : rng() > 0.45
+    const decision: GameLogEntry["decision"] = isGoalie ? (win ? "W" : rng() > 0.5 ? "OTL" : "L") : null
     const toiMin = isGoalie ? 60 : 14 + Math.floor(rng() * 10)
     const toiSec = Math.floor(rng() * 60)
     const gameFpts = isGoalie
-      ? Math.round((win ? 6 : 2) + savePct * 10 - teamGoalsAgainst * 0.5) 
-      : Math.round((gG * 3 + gA * 2 + gSog * 0.4 + gPim * 0.2) * 10) / 10
+      ? Math.round((win ? 6 : 2) + gSaves * 0.2 - gGa * 1 + (gShutout ? 3 : 0))
+      : Math.round((gG * 3 + gA * 2 + gSog * 0.4 + gHits * 0.3 + gBlk * 0.3 + gPim * 0.2) * 10) / 10
     return {
       date: `${month}/${day}`,
       opp: `${home ? "vs" : "@"} ${opp}`,
@@ -634,6 +685,13 @@ export function getPlayerDetail(player: PlayerLike): PlayerDetail {
       pts: gG + gA,
       pim: gPim,
       sog: gSog,
+      hits: gHits,
+      blk: gBlk,
+      saves: gSaves,
+      shotsAgainst: gShotsAgainst,
+      ga: gGa,
+      shutout: gShutout,
+      decision,
       toi: `${toiMin}:${toiSec.toString().padStart(2, "0")}`,
       fpts: gameFpts,
     }
@@ -654,6 +712,12 @@ export function getPlayerDetail(player: PlayerLike): PlayerDetail {
       a: sA,
       pts: sG + sA,
       pim: Math.max(0, Math.round(pim * decay * (0.8 + rng() * 0.4))),
+      hits: Math.max(0, Math.round(hits * decay * (0.85 + rng() * 0.3))),
+      blk: Math.max(0, Math.round(blk * decay * (0.85 + rng() * 0.3))),
+      saves: Math.max(0, Math.round(saves * decay * (0.9 + rng() * 0.15) * (sGp / Math.max(gp, 1)))),
+      ga: Math.max(0, Math.round(ga * decay * (0.9 + rng() * 0.2) * (sGp / Math.max(gp, 1)))),
+      shutouts: Math.max(0, Math.round(shutouts * decay * (0.7 + rng() * 0.5))),
+      wins: Math.max(0, Math.round(wins * decay * (0.85 + rng() * 0.3) * (sGp / Math.max(gp, 1)))),
       fptsPerGame: Math.round(fptsPerGame * decay * (0.85 + rng() * 0.3) * 10) / 10,
     }
   })
@@ -712,7 +776,21 @@ export function getPlayerDetail(player: PlayerLike): PlayerDetail {
 
   return {
     bio,
-    seasonTotals: { g, a, pts, pim, sog, fpts, fptsPerGame: Math.round(fptsPerGame * 10) / 10 },
+    seasonTotals: {
+      g,
+      a,
+      pts,
+      pim,
+      sog,
+      hits,
+      blk,
+      saves,
+      ga,
+      shutouts,
+      wins,
+      fpts,
+      fptsPerGame: Math.round(fptsPerGame * 10) / 10,
+    },
     gameLog,
     pastSeasons,
     depthChart,
