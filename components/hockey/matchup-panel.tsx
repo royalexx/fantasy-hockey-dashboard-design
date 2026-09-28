@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { league, matchup, matchupStarters, type MatchupPlayer, type MatchupRow } from "@/lib/hockey-data"
+import { league, weekMatchups, matchupStartersByMatchup, type MatchupPlayer, type MatchupRow } from "@/lib/hockey-data"
+import { MatchupBanner } from "@/components/hockey/matchup-banner"
 
 const positionColors: Record<MatchupRow["slot"], string> = {
   C: "bg-cyan-400/15 text-cyan-400",
@@ -54,12 +55,83 @@ function PlayerPts({ player, align }: { player: MatchupPlayer; align: "left" | "
   )
 }
 
+const SWIPE_THRESHOLD = 40
+
 export function MatchupPanel() {
   const [week, setWeek] = useState(league.week)
-  const homeWinning = matchup.homeScore >= matchup.awayScore
+  const [matchupIndex, setMatchupIndex] = useState(0)
+  const touchStartX = useRef<number | null>(null)
+
+  const total = weekMatchups.length
+  const currentSummary = weekMatchups[matchupIndex]
+  const currentStarters = matchupStartersByMatchup[currentSummary.id]
+  const homeWinning = currentSummary.homeScore >= currentSummary.awayScore
+
+  function goTo(index: number) {
+    setMatchupIndex(((index % total) + total) % total)
+  }
+  function next() {
+    goTo(matchupIndex + 1)
+  }
+  function prev() {
+    goTo(matchupIndex - 1)
+  }
+
+  function handleTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX
+  }
+  function handleTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current == null) return
+    const delta = e.changedTouches[0].clientX - touchStartX.current
+    if (delta <= -SWIPE_THRESHOLD) next()
+    else if (delta >= SWIPE_THRESHOLD) prev()
+    touchStartX.current = null
+  }
 
   return (
     <div className="flex flex-col gap-4 px-4 pb-4">
+      <section
+        className="relative"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        aria-roledescription="carousel"
+      >
+        <button
+          type="button"
+          onClick={prev}
+          aria-label="Previous matchup"
+          className="absolute left-0 top-1/2 z-10 -translate-x-2 -translate-y-1/2 rounded-full border border-zinc-800 bg-zinc-950/90 p-1.5 text-zinc-400 hover:text-cyan-400 sm:-translate-x-3"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={next}
+          aria-label="Next matchup"
+          className="absolute right-0 top-1/2 z-10 -translate-y-1/2 translate-x-2 rounded-full border border-zinc-800 bg-zinc-950/90 p-1.5 text-zinc-400 hover:text-cyan-400 sm:translate-x-3"
+        >
+          <ChevronRight className="size-4" />
+        </button>
+
+        <MatchupBanner key={currentSummary.id} summary={currentSummary} />
+
+        <div className="mt-3 flex items-center justify-center gap-1.5">
+          {weekMatchups.map((m, index) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => goTo(index)}
+              aria-label={`Go to matchup ${index + 1}`}
+              aria-current={index === matchupIndex ? "true" : undefined}
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                index === matchupIndex ? "w-5 bg-cyan-400" : "w-1.5 bg-zinc-700",
+              )}
+            />
+          ))}
+        </div>
+      </section>
+
       <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
         <div className="flex items-center justify-between gap-2 border-b border-zinc-800 px-4 py-3">
           <div>
@@ -89,17 +161,17 @@ export function MatchupPanel() {
 
         <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
           <p className={cn("truncate text-xs font-semibold", homeWinning ? "text-white" : "text-zinc-500")}>
-            {matchup.homeTeam}
+            {currentSummary.homeTeam}
           </p>
           <p className={cn("truncate text-xs font-semibold", !homeWinning ? "text-white" : "text-zinc-500")}>
-            {matchup.awayTeam}
+            {currentSummary.awayTeam}
           </p>
         </div>
 
         <div>
-          {matchupStarters.map((row, index) => (
+          {currentStarters.map((row, index) => (
             <div
-              key={`${row.slot}-${index}`}
+              key={`${currentSummary.id}-${row.slot}-${index}`}
               className="grid grid-cols-[1fr_54px_40px_54px_1fr] items-center gap-1.5 border-b border-zinc-800/70 px-3 py-3 last:border-b-0 sm:gap-3"
             >
               <PlayerSide player={row.home} align="left" />
