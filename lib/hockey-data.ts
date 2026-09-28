@@ -217,6 +217,151 @@ export const matchupTopScorers = {
   ] as MatchupScorer[],
 }
 
+export interface MatchupPlayer {
+  name: string
+  position: Player["position"]
+  team: string
+  opponent: string
+  status: PlayerStatus
+  todayPts: number | null
+  projPts: number
+}
+
+export interface MatchupRow {
+  slot: "C" | "LW" | "RW" | "D" | "G"
+  home: MatchupPlayer
+  away: MatchupPlayer
+}
+
+export const matchupStarters: MatchupRow[] = [
+  {
+    slot: "C",
+    home: {
+      name: "Nathan MacKinnon",
+      position: "C",
+      team: "COL",
+      opponent: "vs BOS",
+      status: null,
+      todayPts: 18.4,
+      projPts: 22.1,
+    },
+    away: {
+      name: "Auston Matthews",
+      position: "C",
+      team: "TOR",
+      opponent: "@ OTT",
+      status: null,
+      todayPts: 16.7,
+      projPts: 20.4,
+    },
+  },
+  {
+    slot: "LW",
+    home: {
+      name: "Artemi Panarin",
+      position: "LW",
+      team: "NYR",
+      opponent: "@ NJD",
+      status: null,
+      todayPts: 9.2,
+      projPts: 17.5,
+    },
+    away: {
+      name: "Matthew Knies",
+      position: "LW",
+      team: "TOR",
+      opponent: "@ OTT",
+      status: null,
+      todayPts: 8.6,
+      projPts: 14.9,
+    },
+  },
+  {
+    slot: "RW",
+    home: {
+      name: "David Pastrnak",
+      position: "RW",
+      team: "BOS",
+      opponent: "@ COL",
+      status: "DTD",
+      todayPts: null,
+      projPts: 19.8,
+    },
+    away: {
+      name: "Mitch Marner",
+      position: "RW",
+      team: "TOR",
+      opponent: "@ OTT",
+      status: null,
+      todayPts: 13.2,
+      projPts: 18.1,
+    },
+  },
+  {
+    slot: "D",
+    home: {
+      name: "Cale Makar",
+      position: "D",
+      team: "COL",
+      opponent: "vs BOS",
+      status: null,
+      todayPts: 14.1,
+      projPts: 18.9,
+    },
+    away: {
+      name: "Morgan Rielly",
+      position: "D",
+      team: "TOR",
+      opponent: "@ OTT",
+      status: null,
+      todayPts: 7.8,
+      projPts: 12.6,
+    },
+  },
+  {
+    slot: "D",
+    home: {
+      name: "Quinn Hughes",
+      position: "D",
+      team: "VAN",
+      opponent: "vs SEA",
+      status: null,
+      todayPts: null,
+      projPts: 16.2,
+    },
+    away: {
+      name: "Cale Fleury",
+      position: "D",
+      team: "TOR",
+      opponent: "@ OTT",
+      status: null,
+      todayPts: null,
+      projPts: 9.4,
+    },
+  },
+  {
+    slot: "G",
+    home: {
+      name: "Igor Shesterkin",
+      position: "G",
+      team: "NYR",
+      opponent: "@ NJD",
+      status: null,
+      todayPts: 11.0,
+      projPts: 14.4,
+    },
+    away: {
+      name: "William Nylander",
+      position: "G",
+      team: "TOR",
+      opponent: "@ OTT",
+      status: null,
+      todayPts: 10.5,
+      projPts: 13.7,
+    },
+  },
+]
+
 export interface ChatMessage {
   id: string
   author: string

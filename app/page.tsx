@@ -7,7 +7,6 @@ import { MatchupBanner } from "@/components/hockey/matchup-banner"
 import { TabNav, type TeamTab } from "@/components/hockey/tab-nav"
 import { RosterSection } from "@/components/hockey/roster-section"
 import { MatchupPanel } from "@/components/hockey/matchup-panel"
-import { TaxiSquadSection } from "@/components/hockey/taxi-squad-section"
 import { LeaguePanel } from "@/components/hockey/league-panel"
 import { LeagueChatDrawer } from "@/components/hockey/league-chat-drawer"
 import { BottomNav, type BottomNavItem } from "@/components/hockey/bottom-nav"
@@ -37,7 +36,6 @@ export default function Page() {
           <div className="mt-4">
             {teamTab === "roster" && <RosterSection />}
             {teamTab === "matchup" && <MatchupPanel />}
-            {teamTab === "taxi" && <TaxiSquadSection />}
             {teamTab === "league" && <LeaguePanel />}
           </div>
         </>

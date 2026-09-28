@@ -2,12 +2,11 @@
 
 import { cn } from "@/lib/utils"
 
-export type TeamTab = "roster" | "matchup" | "taxi" | "league"
+export type TeamTab = "roster" | "matchup" | "league"
 
 const tabs: Array<{ id: TeamTab; label: string }> = [
   { id: "roster", label: "Roster" },
   { id: "matchup", label: "Matchup" },
-  { id: "taxi", label: "Taxi / Picks" },
   { id: "league", label: "League" },
 ]
 
