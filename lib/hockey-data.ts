@@ -459,6 +459,267 @@ export const matchupStartersByMatchup: Record<string, MatchupRow[]> = {
   ],
 }
 
+// ---------- Player detail (deep-dive popup) ----------
+
+function hashString(input: string): number {
+  let hash = 2166136261
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+function mulberry32(seed: number) {
+  let a = seed
+  return () => {
+    a |= 0
+    a = (a + 0x6d2b79f5) | 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const OPPONENT_POOL = ["BOS", "TOR", "NYR", "COL", "EDM", "VAN", "CGY", "OTT", "BUF", "DET", "FLA", "TBL", "CAR", "NJD"]
+
+const FILLER_FORWARDS = [
+  "J. Marchetti", "K. Olander", "T. Rousseau", "D. Whitfield", "M. Larkin",
+  "S. Beaupre", "R. Novak", "C. Fontaine", "A. Kessler", "L. Girard",
+]
+const FILLER_DEFENSE = ["B. Holt", "P. Savard", "N. Dahlin Jr.", "E. Werenski", "G. Larsson", "T. Bouchard"]
+const FILLER_GOALIES = ["M. Sorensen", "J. Villalta"]
+
+const TRANSACTION_TEMPLATES = [
+  (team: string) => `Drafted by ${team} in the fantasy rookie draft.`,
+  (team: string) => `Added off waivers by ${team}.`,
+  (team: string) => `Claimed as a free agent by ${team}.`,
+  (team: string) => `Traded to ${team} for a future draft pick.`,
+  (team: string) => `Traded to ${team} in a multi-player deal.`,
+]
+
+export interface PlayerDetailBio {
+  age: number
+  heightWeight: string
+  birthplace: string
+  draft: string
+  shoots: string
+}
+
+export interface GameLogEntry {
+  date: string
+  opp: string
+  result: string
+  g: number
+  a: number
+  pts: number
+  pim: number
+  sog: number
+  toi: string
+  fpts: number
+}
+
+export interface SeasonLine {
+  season: string
+  team: string
+  gp: number
+  g: number
+  a: number
+  pts: number
+  pim: number
+  fptsPerGame: number
+}
+
+export interface DepthChartSlot {
+  label: string
+  name: string
+  isTarget: boolean
+}
+
+export interface DepthChartLine {
+  line: string
+  slots: DepthChartSlot[]
+}
+
+export interface TransactionEntry {
+  date: string
+  type: "Draft" | "Waiver" | "Trade" | "Free Agent"
+  description: string
+}
+
+export interface PlayerDetail {
+  bio: PlayerDetailBio
+  seasonTotals: { g: number; a: number; pts: number; pim: number; sog: number; fpts: number; fptsPerGame: number }
+  gameLog: GameLogEntry[]
+  pastSeasons: SeasonLine[]
+  depthChart: DepthChartLine[]
+  transactions: TransactionEntry[]
+}
+
+interface PlayerLike {
+  name: string
+  position: Player["position"]
+  team: string
+  projPts: number
+}
+
+export function getPlayerDetail(player: PlayerLike): PlayerDetail {
+  const rng = mulberry32(hashString(player.name))
+  const isGoalie = player.position === "G"
+  const isDefense = player.position === "D"
+  const base = Math.max(player.projPts, 8)
+
+  // Bio
+  const age = 20 + Math.floor(rng() * 15)
+  const heightIn = 70 + Math.floor(rng() * 8)
+  const weight = 175 + Math.floor(rng() * 45)
+  const draftYear = 2026 - age + 18 + Math.floor(rng() * 2)
+  const draftRound = 1 + Math.floor(rng() * 6)
+  const draftPick = 1 + Math.floor(rng() * 31)
+  const provinces = ["Ontario, CAN", "Quebec, CAN", "British Columbia, CAN", "Alberta, CAN", "Sweden", "Finland", "Czech Republic", "Michigan, USA", "Minnesota, USA"]
+  const bio: PlayerDetailBio = {
+    age,
+    heightWeight: `${Math.floor(heightIn / 12)}'${heightIn % 12}" · ${weight} lbs`,
+    birthplace: provinces[Math.floor(rng() * provinces.length)],
+    draft: `${draftYear} · Round ${draftRound}, Pick ${draftPick}`,
+    shoots: rng() > 0.5 ? "Left" : "Right",
+  }
+
+  // Season totals derived from a per-game fantasy rate
+  const gp = 58 + Math.floor(rng() * 20)
+  const fptsPerGame = base * (0.85 + rng() * 0.3)
+  const fpts = Math.round(fptsPerGame * gp * 10) / 10
+  let g = 0
+  let a = 0
+  let sog = 0
+  if (isGoalie) {
+    sog = 0
+    g = 0
+    a = Math.floor(rng() * 3)
+  } else {
+    const goalRate = isDefense ? 0.08 + rng() * 0.1 : 0.15 + rng() * 0.25
+    const assistRate = isDefense ? 0.2 + rng() * 0.2 : 0.2 + rng() * 0.25
+    g = Math.round(gp * goalRate)
+    a = Math.round(gp * assistRate)
+    sog = Math.round(g * (7 + rng() * 4))
+  }
+  const pts = g + a
+  const pim = Math.round(gp * (0.1 + rng() * 0.35))
+
+  // Game log — last 6 games
+  const gameLog: GameLogEntry[] = Array.from({ length: 6 }).map((_, i) => {
+    const dayOffset = (6 - i) * 2
+    const month = 3
+    const day = Math.max(1, 28 - dayOffset)
+    const opp = OPPONENT_POOL[Math.floor(rng() * OPPONENT_POOL.length)]
+    const home = rng() > 0.5
+    const gG = isGoalie ? 0 : rng() > 0.65 ? 1 + Math.floor(rng() * 2) : 0
+    const gA = isGoalie ? 0 : rng() > 0.55 ? 1 + Math.floor(rng() * 2) : 0
+    const gSog = isGoalie ? 0 : 2 + Math.floor(rng() * 5)
+    const gPim = rng() > 0.8 ? 2 : 0
+    const teamGoalsAgainst = isGoalie ? Math.floor(rng() * 4) : 0
+    const savePct = isGoalie ? 0.88 + rng() * 0.09 : 0
+    const win = isGoalie ? rng() > 0.42 : rng() > 0.45
+    const toiMin = isGoalie ? 60 : 14 + Math.floor(rng() * 10)
+    const toiSec = Math.floor(rng() * 60)
+    const gameFpts = isGoalie
+      ? Math.round((win ? 6 : 2) + savePct * 10 - teamGoalsAgainst * 0.5) 
+      : Math.round((gG * 3 + gA * 2 + gSog * 0.4 + gPim * 0.2) * 10) / 10
+    return {
+      date: `${month}/${day}`,
+      opp: `${home ? "vs" : "@"} ${opp}`,
+      result: win ? `W ${3 + Math.floor(rng() * 3)}-${1 + Math.floor(rng() * 3)}` : `L ${1 + Math.floor(rng() * 3)}-${3 + Math.floor(rng() * 3)}`,
+      g: gG,
+      a: gA,
+      pts: gG + gA,
+      pim: gPim,
+      sog: gSog,
+      toi: `${toiMin}:${toiSec.toString().padStart(2, "0")}`,
+      fpts: gameFpts,
+    }
+  })
+
+  // Past seasons — 3 prior years, gently declining as we go back for young stars
+  const seasonYears = ["2024-25", "2023-24", "2022-23"]
+  const pastSeasons: SeasonLine[] = seasonYears.map((season, i) => {
+    const decay = 1 - i * (0.08 + rng() * 0.06)
+    const sGp = Math.max(20, Math.round(gp * (0.9 + rng() * 0.15) * (i === 2 ? 0.85 : 1)))
+    const sG = Math.max(0, Math.round(g * decay * (0.85 + rng() * 0.3)))
+    const sA = Math.max(0, Math.round(a * decay * (0.85 + rng() * 0.3)))
+    return {
+      season,
+      team: player.team,
+      gp: sGp,
+      g: sG,
+      a: sA,
+      pts: sG + sA,
+      pim: Math.max(0, Math.round(pim * decay * (0.8 + rng() * 0.4))),
+      fptsPerGame: Math.round(fptsPerGame * decay * (0.85 + rng() * 0.3) * 10) / 10,
+    }
+  })
+
+  // Depth chart — build around this player's real position
+  const depthChart: DepthChartLine[] = isGoalie
+    ? [
+        {
+          line: "Goaltending",
+          slots: [
+            { label: "G1", name: player.name, isTarget: true },
+            { label: "G2", name: FILLER_GOALIES[0], isTarget: false },
+          ],
+        },
+      ]
+    : isDefense
+      ? [1, 2, 3].map((pair) => ({
+          line: `Pair ${pair}`,
+          slots: [
+            { label: "LD", name: pair === 1 ? player.name : FILLER_DEFENSE[(pair * 2) % FILLER_DEFENSE.length], isTarget: pair === 1 },
+            { label: "RD", name: pair === 2 ? player.name : FILLER_DEFENSE[(pair * 2 + 1) % FILLER_DEFENSE.length], isTarget: pair === 2 },
+          ],
+        }))
+      : [1, 2, 3, 4].map((line) => {
+          const targetSlot = Math.floor(rng() * 3)
+          const labels = ["LW", "C", "RW"]
+          return {
+            line: `Line ${line}`,
+            slots: labels.map((label, idx) => ({
+              label,
+              name: line === 1 && idx === targetSlot ? player.name : FILLER_FORWARDS[(line * 3 + idx) % FILLER_FORWARDS.length],
+              isTarget: line === 1 && idx === targetSlot,
+            })),
+          }
+        })
+  // Guarantee the target appears somewhere even if line 1 didn't place it
+  const alreadyPlaced = depthChart.some((l) => l.slots.some((s) => s.isTarget))
+  if (!alreadyPlaced && depthChart.length > 0) {
+    depthChart[0].slots[0] = { ...depthChart[0].slots[0], name: player.name, isTarget: true }
+  }
+
+  // Transactions
+  const teamPool = ["Montreal Monarchs", "Toronto Titans", "Vancouver Voyagers", "Calgary Comets", "Ottawa Outlaws", "Edmonton Ember"]
+  const txCount = 2 + Math.floor(rng() * 2)
+  const transactions: TransactionEntry[] = Array.from({ length: txCount }).map((_, i) => {
+    const team = teamPool[Math.floor(rng() * teamPool.length)]
+    const template = TRANSACTION_TEMPLATES[Math.floor(rng() * TRANSACTION_TEMPLATES.length)]
+    const year = 2026 - i
+    const types: TransactionEntry["type"][] = ["Draft", "Waiver", "Trade", "Free Agent"]
+    return {
+      date: `${["Jan", "Mar", "Jun", "Sep", "Oct"][Math.floor(rng() * 5)]} ${year}`,
+      type: types[Math.floor(rng() * types.length)],
+      description: template(team),
+    }
+  })
+
+  return {
+    bio,
+    seasonTotals: { g, a, pts, pim, sog, fpts, fptsPerGame: Math.round(fptsPerGame * 10) / 10 },
+    gameLog,
+    pastSeasons,
+    depthChart,
+    transactions,
+  }
+}
+
 export interface ChatMessage {
   id: string
   author: string

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { league, weekMatchups, matchupStartersByMatchup, type MatchupPlayer, type MatchupRow } from "@/lib/hockey-data"
 import { MatchupBanner } from "@/components/hockey/matchup-banner"
+import { PlayerDetailDialog, type PlayerDialogTarget } from "@/components/hockey/player-detail-dialog"
 
 const positionColors: Record<MatchupRow["slot"], string> = {
   C: "bg-cyan-400/15 text-cyan-400",
@@ -21,9 +22,24 @@ const statusStyles: Record<string, string> = {
   DTD: "bg-yellow-400/10 text-yellow-400",
 }
 
-function PlayerSide({ player, align }: { player: MatchupPlayer; align: "left" | "right" }) {
+function PlayerSide({
+  player,
+  align,
+  onSelect,
+}: {
+  player: MatchupPlayer
+  align: "left" | "right"
+  onSelect: (player: MatchupPlayer) => void
+}) {
   return (
-    <div className={cn("min-w-0", align === "left" ? "text-right" : "text-left")}>
+    <button
+      type="button"
+      onClick={() => onSelect(player)}
+      className={cn(
+        "min-w-0 rounded-md px-1 py-0.5 transition-colors hover:bg-zinc-800/60",
+        align === "left" ? "text-right" : "text-left",
+      )}
+    >
       <div className={cn("flex items-center gap-1.5", align === "left" ? "justify-end" : "justify-start")}>
         {align === "left" && player.status && (
           <span className={cn("shrink-0 rounded px-1 py-0.5 text-[9px] font-bold", statusStyles[player.status])}>
@@ -40,7 +56,7 @@ function PlayerSide({ player, align }: { player: MatchupPlayer; align: "left" | 
       <p className="truncate text-[11px] text-zinc-500">
         {player.position} · {player.team} ({player.opponent})
       </p>
-    </div>
+    </button>
   )
 }
 
@@ -60,7 +76,12 @@ const SWIPE_THRESHOLD = 40
 export function MatchupPanel() {
   const [week, setWeek] = useState(league.week)
   const [matchupIndex, setMatchupIndex] = useState(0)
+  const [selectedPlayer, setSelectedPlayer] = useState<PlayerDialogTarget | null>(null)
   const touchStartX = useRef<number | null>(null)
+
+  function handleSelectPlayer(player: MatchupPlayer) {
+    setSelectedPlayer(player)
+  }
 
   const total = weekMatchups.length
   const currentSummary = weekMatchups[matchupIndex]
@@ -174,7 +195,7 @@ export function MatchupPanel() {
               key={`${currentSummary.id}-${row.slot}-${index}`}
               className="grid grid-cols-[1fr_54px_40px_54px_1fr] items-center gap-1.5 border-b border-zinc-800/70 px-3 py-3 last:border-b-0 sm:gap-3"
             >
-              <PlayerSide player={row.home} align="left" />
+              <PlayerSide player={row.home} align="left" onSelect={handleSelectPlayer} />
               <PlayerPts player={row.home} align="left" />
               <div className="flex justify-center">
                 <span className={cn("rounded-lg px-2 py-1.5 text-[10px] font-bold", positionColors[row.slot])}>
@@ -182,11 +203,19 @@ export function MatchupPanel() {
                 </span>
               </div>
               <PlayerPts player={row.away} align="right" />
-              <PlayerSide player={row.away} align="right" />
+              <PlayerSide player={row.away} align="right" onSelect={handleSelectPlayer} />
             </div>
           ))}
         </div>
       </section>
+
+      <PlayerDetailDialog
+        player={selectedPlayer}
+        open={selectedPlayer != null}
+        onOpenChange={(next) => {
+          if (!next) setSelectedPlayer(null)
+        }}
+      />
     </div>
   )
 }
