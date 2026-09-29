@@ -35,12 +35,9 @@ export const NHL_PLAYER_IDS: Record<string, number> = {
   "Shane Wright": 8483434,
 }
 
-export function getPlayerPhoto(name: string): string {
-  const nhlId = NHL_PLAYER_IDS[name]
-  if (nhlId) {
-    return `https://assets.nhle.com/mugs/nhl/latest/${nhlId}.png`
-  }
-  return "/players/player-generic.png"
+export function getPlayerPhoto(name?: string): string {
+  if (!name) return "/players/player-generic.png"
+  return `/api/nhl/headshot?name=${encodeURIComponent(name)}`
 }
 
 export interface SkaterStats {

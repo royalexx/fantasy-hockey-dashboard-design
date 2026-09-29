@@ -3,7 +3,7 @@
 import Image from "next/image"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import type { Player } from "@/lib/hockey-data"
+import {getPlayerPhoto, type Player } from "@/lib/hockey-data"
 import { PlayerDetailDialog } from "@/components/hockey/player-detail-dialog"
 
 // Exact Sleeper position container badge colors
@@ -74,13 +74,14 @@ export function PlayerRow({
             onClick={() => onSelect ? onSelect(player) : setOpen(true)}
             className="flex min-w-0 items-center gap-2.5 text-left"
           >
-            <div className="relative size-8 shrink-0 overflow-hidden rounded-full border border-[#202e48] bg-[#141d2f]">
-              <Image
-                src="/players/player-generic.png"
+            <div className="size-8 shrink-0 overflow-hidden rounded-full border border-[#202e48] bg-[#141d2f]">
+              <img
+                src={getPlayerPhoto(player.name)}
                 alt={player.name}
-                fill
-                sizes="32px"
-                className="object-cover"
+                className="size-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/players/player-generic.png"
+                }}
               />
             </div>
 
