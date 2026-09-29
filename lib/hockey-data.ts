@@ -1,6 +1,48 @@
 export type PlayerStatus = "IR" | "TAXI" | "O" | "DTD" | null
 export type RosterSlot = "C" | "W" | "F" | "D" | "G" | "BN" | "TAXI" | "IR"
 
+// Official NHL CDN Player IDs for transparent headshots
+export const NHL_PLAYER_IDS: Record<string, number> = {
+  // Montreal Monarchs (Your Starters)
+  "Nathan MacKinnon": 8477492,
+  "Auston Matthews": 8479318,
+  "Elias Pettersson": 8480012,
+  "Jack Eichel": 8478403,
+  "Leon Draisaitl": 8477934,
+  "Mitch Marner": 8478483,
+  "Cale Makar": 8480069,
+  "Quinn Hughes": 8480800,
+  "Adam Fox": 8479323,
+  "Rasmus Dahlin": 8480839,
+  "Miro Heiskanen": 8480036,
+  "Victor Hedman": 8475167,
+  "Igor Shesterkin": 8478048,
+  "Andrei Vasilevskiy": 8476883,
+
+  // Bench & Prospects
+  "Tim Stützle": 8482093,
+  "Trevor Zegras": 8481533,
+  "Owen Power": 8482671,
+  "Matvei Michkov": 8484387,
+  "Lane Hutson": 8483487,
+  "Connor Bedard": 8484144,
+  "Macklin Celebrini": 8484801,
+  "Dustin Wolf": 8481702,
+  "Logan Stankoven": 8482705,
+  "Will Smith": 8484148,
+  "Cutter Gauthier": 8483431,
+  "Rutger McGroarty": 8483466,
+  "Shane Wright": 8483434,
+}
+
+export function getPlayerPhoto(name: string): string {
+  const nhlId = NHL_PLAYER_IDS[name]
+  if (nhlId) {
+    return `https://assets.nhle.com/mugs/nhl/latest/${nhlId}.png`
+  }
+  return "/players/player-generic.png"
+}
+
 export interface SkaterStats {
   gp: number
   goals: number

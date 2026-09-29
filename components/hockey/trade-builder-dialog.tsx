@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Check, ChevronRight, CircleHelp, Handshake, Shield, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Player } from "@/lib/hockey-data"
+import { getPlayerPhoto, type Player } from "@/lib/hockey-data"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
 export interface TradePick {
@@ -52,9 +52,15 @@ type Step = 1 | 2 | 3
 
 function PlayerAvatar({ player }: { player: Player }) {
   return (
-    <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-[#2a3f66] bg-[#172338] text-[#19ffff]">
-      <Shield className="size-4" />
-      <span className="sr-only">{player.name}</span>
+    <div className="size-9 shrink-0 overflow-hidden rounded-full border border-[#2a3f66] bg-[#172338]">
+      <img 
+        src={getPlayerPhoto(player.name)} 
+        alt={player.name} 
+        className="size-full object-cover"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "/players/player-generic.png"
+        }}
+      />
     </div>
   )
 }

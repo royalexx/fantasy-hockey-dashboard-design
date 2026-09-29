@@ -3,7 +3,7 @@
 import { Shield, X } from "lucide-react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import type { Player } from "@/lib/hockey-data"
+import { getPlayerPhoto, type Player } from "@/lib/hockey-data"
 
 type StartingSlot = Extract<Player["slot"], "C" | "W" | "F" | "D" | "G">
 
@@ -63,7 +63,18 @@ function eligibleTargets(player: Player | null, roster: Player[], emptySlot?: St
 }
 
 function PlayerAvatar({ player }: { player: Player }) {
-  return <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#24375b] bg-[#1b2842] text-xs font-black text-[#19ffff]"><Shield className="size-4" /></div>
+  return (
+    <div className="size-10 shrink-0 overflow-hidden rounded-full border border-[#24375b] bg-[#1b2842]">
+      <img 
+        src={getPlayerPhoto(player.name)} 
+        alt={player.name} 
+        className="size-full object-cover"
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "/players/player-generic.png"
+        }}
+      />
+    </div>
+  )
 }
 
 export function LineupSlotDialog({
