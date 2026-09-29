@@ -135,20 +135,6 @@ function TeamDrawer({
   )
 }
 
-const [allDynastyPlayers, setAllDynastyPlayers] = useState<MarketPlayer[]>([])
-
-useEffect(() => {
-  fetch("/api/players")
-    .then((res) => res.json())
-    .then((data) => {
-      if (Array.isArray(data) && data.length > 0) {
-        setAllDynastyPlayers(data)
-      }
-    })
-    .catch((err) => console.error("Error loading dynasty players:", err))
-}, [])
-
-const displayMarketPlayers = allDynastyPlayers.length > 0 ? allDynastyPlayers : marketPlayers
 
 const slotBadgeColors: Record<string, string> = {
   C: "bg-[#1d4ed8] text-white",
@@ -171,6 +157,18 @@ const startingSlots: Array<{ slot: "C" | "W" | "F" | "D" | "G"; capacity: number
 
 export default function SleeperDynastyApp() {
   const [activeTab, setActiveTab] = useState<MainTab>("TEAM")
+  const [allDynastyPlayers, setAllDynastyPlayers] = useState<MarketPlayer[]>([])
+
+  useEffect(() => {
+    fetch("/api/players")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setAllDynastyPlayers(data)
+        }
+      })
+      .catch((err) => console.error("Error loading dynasty players:", err))
+  }, [])
   const [week, setWeek] = useState(1)
   const [selectedMatchupId, setSelectedMatchupId] = useState(weekMatchups[0].id)
   const [liveMatchups, setLiveMatchups] = useState<Record<string, MatchupSummary & { projectedHome: number; projectedAway: number }>>({})
