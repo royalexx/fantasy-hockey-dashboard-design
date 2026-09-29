@@ -135,6 +135,21 @@ function TeamDrawer({
   )
 }
 
+const [allDynastyPlayers, setAllDynastyPlayers] = useState<MarketPlayer[]>([])
+
+useEffect(() => {
+  fetch("/api/players")
+    .then((res) => res.json())
+    .then((data) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setAllDynastyPlayers(data)
+      }
+    })
+    .catch((err) => console.error("Error loading dynasty players:", err))
+}, [])
+
+const displayMarketPlayers = allDynastyPlayers.length > 0 ? allDynastyPlayers : marketPlayers
+
 const slotBadgeColors: Record<string, string> = {
   C: "bg-[#1d4ed8] text-white",
   W: "bg-[#0d9488] text-white",
