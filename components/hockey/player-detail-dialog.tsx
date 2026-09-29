@@ -2,31 +2,14 @@
 
 import Image from "next/image"
 import { useMemo, useState } from "react"
+import { ChevronLeft, Heart, Star, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { getPlayerDetail, type Player, type PlayerStatus } from "@/lib/hockey-data"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { getPlayerDetail, type MarketPlayer, type Player, type PlayerStatus } from "@/lib/hockey-data"
 
-const positionColors: Record<Player["position"], string> = {
-  C: "bg-cyan-400/15 text-cyan-400",
-  LW: "bg-emerald-400/15 text-emerald-400",
-  RW: "bg-violet-400/15 text-violet-400",
-  D: "bg-orange-400/15 text-orange-400",
-  G: "bg-sky-400/15 text-sky-400",
-}
-
-const statusStyles: Record<string, string> = {
-  IR: "bg-red-400/10 text-red-400",
-  TAXI: "bg-amber-400/10 text-amber-400",
-  O: "bg-red-500/10 text-red-500",
-  DTD: "bg-yellow-400/10 text-yellow-400",
+const slotColors: Record<string, string> = {
+  C: "bg-[#1d4ed8] text-white", LW: "bg-[#0d9488] text-white", RW: "bg-[#0d9488] text-white",
+  D: "bg-[#b45309] text-white", G: "bg-[#0284c7] text-white",
 }
 
 export interface PlayerDialogTarget {
@@ -37,351 +20,63 @@ export interface PlayerDialogTarget {
   status: PlayerStatus
   todayPts: number | null
   projPts: number
+  marketPlayer?: MarketPlayer
+  owned?: boolean
+  playerId?: string
+  ownerName?: string
+  tradeBlockNote?: string
 }
 
-const TABS = [
-  { id: "overview", label: "Overview" },
-  { id: "log", label: "Game Log" },
-  { id: "seasons", label: "Seasons" },
-  { id: "depth", label: "Depth Chart" },
-  { id: "moves", label: "Transactions" },
-] as const
-
-type TabId = (typeof TABS)[number]["id"]
+type Tab = "summary" | "log" | "team" | "history"
 
 export function PlayerDetailDialog({
-  player,
-  open,
-  onOpenChange,
+  player, open, onOpenChange, onClaim, onSelectPlayer,
+  tradeBlockActive, onToggleTradeBlock, onInitiateTrade,
 }: {
   player: PlayerDialogTarget | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onClaim?: (player: PlayerDialogTarget) => void
+  onSelectPlayer?: (player: PlayerDialogTarget) => void
+  tradeBlockActive?: boolean
+  onToggleTradeBlock?: (player: PlayerDialogTarget) => void
+  onInitiateTrade?: (player: PlayerDialogTarget) => void
 }) {
-  const [tab, setTab] = useState<TabId>("overview")
-  const detail = useMemo(() => (player ? getPlayerDetail(player) : null), [player])
+  const [tab, setTab] = useState<Tab>("summary")
+  const [favorite, setFavorite] = useState(false)
+  const [watching, setWatching] = useState(false)
+  const [reactions, setReactions] = useState({ "👍": 12, "🔥": 45, "💔": 2 })
+  const detail = useMemo(() => player ? getPlayerDetail(player) : null, [player])
+  if (!open || !player || !detail) return null
+  const actionLabel = player.owned ? "DROP" : player.marketPlayer?.waiver === "FA" ? "+ ADD" : player.marketPlayer ? "+ CLAIM" : "TRADE"
 
-  if (!player || !detail) return null
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        onOpenChange(next)
-        if (!next) setTab("overview")
-      }}
-    >
-      <DialogContent className="max-w-lg gap-0 overflow-hidden p-0 sm:max-w-lg" showCloseButton>
-        <DialogHeader className="gap-0 border-b border-zinc-800 bg-zinc-900 p-4">
-          <DialogTitle className="sr-only">{player.name} player details</DialogTitle>
-          <DialogDescription className="sr-only">
-            Fantasy stats, game log, past seasons, depth chart, and transaction history for {player.name}.
-          </DialogDescription>
-          <div className="flex items-center gap-3 pr-8">
-            <div className="relative size-14 shrink-0 overflow-hidden rounded-full border border-zinc-700 bg-zinc-800">
-              <Image
-                src="/players/player-generic.png"
-                alt={`${player.name} headshot`}
-                fill
-                sizes="56px"
-                className="object-cover"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <h2 className="truncate text-base font-semibold text-white">{player.name}</h2>
-                {player.status && (
-                  <span className={cn("shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold", statusStyles[player.status])}>
-                    {player.status}
-                  </span>
-                )}
-              </div>
-              <div className="mt-1 flex items-center gap-1.5">
-                <Badge className={cn("h-5 rounded px-1.5 text-[10px] font-bold", positionColors[player.position])}>
-                  {player.position}
-                </Badge>
-                <p className="truncate text-xs text-zinc-400">
-                  {player.team} · {player.opponent}
-                </p>
-              </div>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-lg font-bold tabular-nums text-lime-400">
-                {player.todayPts != null ? player.todayPts.toFixed(1) : "—"}
-              </p>
-              <p className="text-[11px] tabular-nums text-zinc-500">proj {player.projPts.toFixed(1)}</p>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="flex items-center gap-1 overflow-x-auto border-b border-zinc-800 bg-zinc-950 px-2 py-1.5">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                tab === t.id ? "bg-cyan-400/15 text-cyan-400" : "text-zinc-500 hover:text-zinc-300",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <ScrollArea className="max-h-[60vh]">
-          <div className="p-4">
-            {tab === "overview" && <OverviewTab detail={detail} isGoalie={player.position === "G"} />}
-            {tab === "log" && <GameLogTab detail={detail} isGoalie={player.position === "G"} />}
-            {tab === "seasons" && <SeasonsTab detail={detail} isGoalie={player.position === "G"} />}
-            {tab === "depth" && <DepthChartTab detail={detail} team={player.team} />}
-            {tab === "moves" && <TransactionsTab detail={detail} />}
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function StatBlock({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-center">
-      <p className="text-base font-bold tabular-nums text-white">{value}</p>
-      <p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
-    </div>
-  )
-}
-
-function OverviewTab({
-  detail,
-  isGoalie,
-}: {
-  detail: ReturnType<typeof getPlayerDetail>
-  isGoalie: boolean
-}) {
-  const { bio, seasonTotals } = detail
-  return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">2025-26 Fantasy Stats</h3>
-        <div className="grid grid-cols-3 gap-2">
-          <StatBlock label="Fpts" value={seasonTotals.fpts} />
-          <StatBlock label="Fpts/GP" value={seasonTotals.fptsPerGame} />
-          {isGoalie ? (
-            <>
-              <StatBlock label="Wins" value={seasonTotals.wins} />
-              <StatBlock label="Saves" value={seasonTotals.saves} />
-              <StatBlock label="GA" value={seasonTotals.ga} />
-              <StatBlock label="Shutouts" value={seasonTotals.shutouts} />
-            </>
-          ) : (
-            <>
-              <StatBlock label="Points" value={seasonTotals.pts} />
-              <StatBlock label="Goals" value={seasonTotals.g} />
-              <StatBlock label="Assists" value={seasonTotals.a} />
-              <StatBlock label="SOG" value={seasonTotals.sog} />
-              <StatBlock label="Hits" value={seasonTotals.hits} />
-              <StatBlock label="Blocks" value={seasonTotals.blk} />
-            </>
-          )}
-        </div>
+  return <Sheet open={open} onOpenChange={(value) => { if (!value) { setTab("summary"); onOpenChange(false) } }}>
+    <SheetContent side="bottom" className="mx-auto flex h-[90vh] max-h-[90vh] max-w-[430px] flex-col rounded-t-3xl border-t border-[#1a263d] bg-[#070a12] p-0 text-white outline-none">
+      <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-[#5e7090]" />
+      <div className="flex shrink-0 items-center justify-between px-3 py-2">
+        <button type="button" onClick={() => onOpenChange(false)} aria-label="Close player profile" className="rounded-full p-2 text-[#8ba0c7] transition-colors hover:bg-[#172338]"><ChevronLeft className="size-5" /></button>
+        <div className="flex gap-1">{player.owned && onToggleTradeBlock && <button type="button" onClick={() => onToggleTradeBlock(player)} aria-label="Toggle trade block" className={cn("rounded-full border px-2 py-1 text-sm font-black transition-colors", tradeBlockActive ? "border-[#19ffff] bg-[#19ffff]/20 text-[#19ffff]" : "border-transparent text-[#5e7090] hover:bg-[#172338]")}>⇄</button>}<button type="button" onClick={() => setFavorite(!favorite)} aria-label="Favorite player" className={cn("rounded-full p-2 transition-colors hover:bg-[#172338]", favorite ? "text-amber-300" : "text-[#5e7090]")}><Star className="size-4" fill={favorite ? "currentColor" : "none"} /></button><button type="button" onClick={() => setWatching(!watching)} aria-label="Watchlist" className={cn("rounded-full p-2 transition-colors hover:bg-[#172338]", watching ? "text-[#ff2a85]" : "text-[#5e7090]")}><Heart className="size-4" fill={watching ? "currentColor" : "none"} /></button><button type="button" onClick={() => onOpenChange(false)} aria-label="Close"><X className="size-4 text-[#5e7090]" /></button></div>
       </div>
-      <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Bio</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <BioRow label="Age" value={String(bio.age)} />
-          <BioRow label="Ht / Wt" value={bio.heightWeight} />
-          <BioRow label="Birthplace" value={bio.birthplace} />
-          <BioRow label="Shoots" value={bio.shoots} />
-          <BioRow label="Drafted" value={bio.draft} className="col-span-2" />
-        </div>
-      </div>
-    </div>
-  )
+      <section className="shrink-0 bg-gradient-to-br from-[#0f172a] via-[#101d34] to-[#123246] px-4 pb-3 pt-1">
+        <div className="flex items-end gap-3"><div className="relative size-20 shrink-0 overflow-hidden rounded-full border-2 border-[#19ffff]/60 bg-[#172338]"><Image src="/players/player-generic.png" alt={`${player.name} headshot`} fill sizes="80px" className="object-cover" /></div><div className="min-w-0 flex-1 pb-1"><h1 className="truncate text-xl font-black">{player.name}</h1><p className="text-xs font-bold text-[#8ba0c7]">{player.team} · #? · {player.position}</p><div className="mt-1 flex items-center gap-1.5"><span className={cn("rounded px-2 py-0.5 text-[10px] font-black", slotColors[player.position])}>{player.position}</span>{player.status && <span className="rounded bg-[#ff2a85]/20 px-2 py-0.5 text-[10px] font-black text-[#ff2a85]">{player.status}</span>}</div></div><div className="text-right"><p className="text-xl font-black tabular-nums text-[#19ffff]">{player.todayPts?.toFixed(1) ?? "—"}</p><p className="text-[10px] text-[#8ba0c7]">proj {player.projPts.toFixed(1)}</p></div></div>
+        <div className="mt-3 grid grid-cols-4 gap-2 text-[10px] text-[#8ba0c7]"><span>AGE<b className="block text-xs text-white">{detail.bio.age}</b></span><span>HT/WT<b className="block text-xs text-white">{detail.bio.heightWeight}</b></span><span>EXP<b className="block text-xs text-white">{detail.bio.experience}</b></span><span>DRAFT<b className="block text-xs text-white">{detail.bio.draftShort}</b></span></div>
+        {player.tradeBlockNote && !player.owned && <div className="mt-3 rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-center text-[10px] font-black text-amber-200">ON TRADE BLOCK · {player.tradeBlockNote}</div>}
+        <div className="mt-3 flex gap-2"><button type="button" onClick={() => { if (actionLabel === "TRADE") { onOpenChange(false); onInitiateTrade?.(player) } else if (!player.owned && onClaim) { onOpenChange(false); onClaim(player) } }} className={cn("h-9 flex-1 rounded-full text-xs font-black transition-all hover:brightness-110 active:scale-[0.98]", player.owned ? "bg-[#3b1824] text-[#ff2a85]" : player.marketPlayer?.waiver === "FA" ? "bg-[#19ffff] text-[#080c14]" : player.marketPlayer ? "border border-[#19ffff]/50 bg-[#12283a] text-[#19ffff]" : "bg-[#172338] text-white")}>{actionLabel}</button></div>
+      </section>
+      <nav className="flex shrink-0 border-b border-[#172338] bg-[#0d1424]">{(["summary", "log", "team", "history"] as Tab[]).map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={cn("relative flex-1 py-3 text-[10px] font-black uppercase tracking-wide transition-colors", tab === item ? "text-[#19ffff]" : "text-[#5e7090] hover:text-white")}>{item === "log" ? "Game Log" : item}{tab === item && <span className="absolute inset-x-3 bottom-0 h-0.5 bg-[#19ffff] shadow-[0_0_8px_#19ffff]" />}</button>)}</nav>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">{tab === "summary" && <SummaryTab detail={detail} reactions={reactions} onReact={(key) => setReactions((current) => ({ ...current, [key]: current[key as keyof typeof current] + 1 }))} />}{tab === "log" && <GameLogTab detail={detail} goalie={player.position === "G"} />}{tab === "team" && <TeamTab detail={detail} player={player} onSelectPlayer={onSelectPlayer} />}{tab === "history" && <HistoryTab detail={detail} />}</div>
+    </SheetContent>
+  </Sheet>
 }
 
-function BioRow({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={cn("rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2", className)}>
-      <p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
-      <p className="truncate text-sm font-medium text-white">{value}</p>
-    </div>
-  )
+function Card({ children, className }: { children: React.ReactNode; className?: string }) { return <div className={cn("rounded-xl border border-[#172338] bg-[#101829] p-3", className)}>{children}</div> }
+function SummaryTab({ detail, reactions, onReact }: { detail: ReturnType<typeof getPlayerDetail>; reactions: Record<string, number>; onReact: (key: string) => void }) {
+  const game = detail.gameLog[0]
+  return <div className="space-y-3"><div className="grid grid-cols-3 gap-2"><Card><p className="text-[9px] text-[#5e7090]">PLAYER RANK</p><b className="mt-1 block text-sm">#4 C</b><span className="text-[10px] text-[#8ba0c7]">#12 overall</span></Card><Card><p className="text-[9px] text-[#5e7090]">OWNERSHIP</p><b className="mt-1 block text-sm">98%</b><span className="text-[10px] text-[#8ba0c7]">94% started</span></Card><Card><p className="text-[9px] text-[#5e7090]">FPTS/GM</p><b className="mt-1 block text-sm text-[#19ffff]">{detail.seasonTotals.fptsPerGame}</b><span className="text-[10px] text-[#8ba0c7]">season avg</span></Card></div><Card><div className="flex items-center justify-between"><div><p className="text-[10px] font-black text-[#8ba0c7]">LAST GAME</p><p className="mt-1 text-xs font-bold">Final: COL 4 - BOS 2 · {game.date}</p></div><b className="text-lg text-[#19ffff]">{game.fpts} FPTS</b></div><p className="mt-3 text-xs text-[#8ba0c7]">{game.g} G · {game.a} A · {game.sog} SOG · {game.hits} HIT · {game.blk} BLK · {game.toi} TOI</p><div className="mt-3 flex gap-2">{Object.entries(reactions).map(([key, value]) => <button key={key} type="button" onClick={() => onReact(key)} className="rounded-full bg-[#172338] px-2.5 py-1 text-xs transition-transform hover:scale-105 active:scale-95">{key} {value}</button>)}</div></Card><Card><p className="text-[10px] font-black uppercase text-[#19ffff]">Recent Player News & Analysis</p><p className="mt-1 text-[10px] text-[#5e7090]">Today · Fantasy impact</p><h3 className="mt-1 text-sm font-bold">{detail.news.headline}</h3><p className="mt-1 text-xs leading-relaxed text-[#8ba0c7]">{detail.news.analysis}</p><p className="mt-2 text-[10px] font-bold text-[#5e7090]">• Elite volume floor  • Top-line deployment  • Strong matchup stream</p></Card><div><p className="mb-2 text-[10px] font-black uppercase text-[#5e7090]">Upcoming projections</p><div className="flex gap-2">{detail.projections.map((projection) => <Card key={projection.week} className="min-w-[92px] text-center"><p className="text-[10px] text-[#5e7090]">{projection.week}</p><b className="text-lg text-[#19ffff]">{projection.fpts}</b></Card>)}</div></div></div>
 }
 
-function GameLogTab({ detail, isGoalie }: { detail: ReturnType<typeof getPlayerDetail>; isGoalie: boolean }) {
-  return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-800">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-950 text-zinc-500">
-            <th className="px-2 py-2 text-left font-medium">Date</th>
-            <th className="px-2 py-2 text-left font-medium">Opp</th>
-            <th className="px-2 py-2 text-left font-medium">Result</th>
-            {isGoalie ? (
-              <>
-                <th className="px-2 py-2 text-right font-medium">Saves</th>
-                <th className="px-2 py-2 text-right font-medium">GA</th>
-                <th className="px-2 py-2 text-right font-medium">SO</th>
-              </>
-            ) : (
-              <>
-                <th className="px-2 py-2 text-right font-medium">G</th>
-                <th className="px-2 py-2 text-right font-medium">A</th>
-                <th className="px-2 py-2 text-right font-medium">SOG</th>
-                <th className="px-2 py-2 text-right font-medium">Hits</th>
-                <th className="px-2 py-2 text-right font-medium">Blk</th>
-              </>
-            )}
-            <th className="px-2 py-2 text-right font-medium">TOI</th>
-            <th className="px-2 py-2 text-right font-medium">Fpts</th>
-          </tr>
-        </thead>
-        <tbody>
-          {detail.gameLog.map((g, i) => (
-            <tr key={i} className="border-b border-zinc-800/70 last:border-b-0">
-              <td className="px-2 py-2 text-zinc-400">{g.date}</td>
-              <td className="px-2 py-2 text-zinc-300">{g.opp}</td>
-              <td
-                className={cn(
-                  "px-2 py-2 font-medium",
-                  (isGoalie ? g.decision === "W" : g.result.startsWith("W")) ? "text-emerald-400" : "text-red-400",
-                )}
-              >
-                {isGoalie ? g.decision : g.result}
-              </td>
-              {isGoalie ? (
-                <>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.saves}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.ga}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.shutout ? "Y" : "—"}</td>
-                </>
-              ) : (
-                <>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.g}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.a}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.sog}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.hits}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{g.blk}</td>
-                </>
-              )}
-              <td className="px-2 py-2 text-right tabular-nums text-zinc-400">{g.toi}</td>
-              <td className="px-2 py-2 text-right tabular-nums font-semibold text-lime-400">{g.fpts}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
+function GameLogTab({ detail, goalie }: { detail: ReturnType<typeof getPlayerDetail>; goalie: boolean }) { const [season, setSeason] = useState("2025-26"); return <div className="space-y-4"><div className="flex gap-2">{["2025-26", "2024-25"].map((year) => <button key={year} type="button" onClick={() => setSeason(year)} className={cn("rounded-full px-2.5 py-1 text-[10px] font-black", season === year ? "bg-[#19ffff] text-[#080c14]" : "bg-[#172338] text-[#8ba0c7]")}>{year}</button>)}</div><Card className="overflow-x-auto p-0"><table className="w-full min-w-[620px] text-left text-[9px]"><thead className="sticky top-0 z-10 bg-[#172338] text-[#5e7090]"><tr>{(goalie ? ["DATE", "OPP", "DEC", "FPTS", "TOI", "GA", "SV", "SV%", "SO"] : ["DATE", "OPP", "RESULT", "FPTS", "TOI", "G", "A", "SOG", "HIT", "BLK", "+ / -"]).map((head) => <th key={head} className="px-2 py-2 font-black">{head}</th>)}</tr></thead><tbody>{detail.gameLog.map((game) => <tr key={`${season}-${game.date}`} className="border-t border-[#172338]"><td className="px-2 py-2 text-white">{game.date}</td><td className="px-2">{game.opp}</td><td className="px-2">{goalie ? game.decision : game.result}</td><td className={cn("px-2 font-black text-[#19ffff]", game.fpts > 15 && "rounded bg-emerald-400/10")}>{game.fpts}</td>{goalie ? <><td className="px-2">{game.toi}</td><td className="px-2">{game.ga}</td><td className="px-2">{game.saves}</td><td className="px-2">{game.svPct}</td><td className="px-2">{game.shutout ? "1" : "0"}</td></> : <><td className="px-2">{game.toi}</td><td className="px-2">{game.g}</td><td className="px-2">{game.a}</td><td className="px-2">{game.sog}</td><td className="px-2">{game.hits}</td><td className="px-2">{game.blk}</td><td className="px-2">{game.plusMinus}</td></>}</tr>)}</tbody></table></Card></div> }
 
-function SeasonsTab({ detail, isGoalie }: { detail: ReturnType<typeof getPlayerDetail>; isGoalie: boolean }) {
-  return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-800">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-950 text-zinc-500">
-            <th className="px-2 py-2 text-left font-medium">Season</th>
-            <th className="px-2 py-2 text-left font-medium">Team</th>
-            <th className="px-2 py-2 text-right font-medium">GP</th>
-            {isGoalie ? (
-              <>
-                <th className="px-2 py-2 text-right font-medium">W</th>
-                <th className="px-2 py-2 text-right font-medium">Saves</th>
-                <th className="px-2 py-2 text-right font-medium">GA</th>
-                <th className="px-2 py-2 text-right font-medium">SO</th>
-              </>
-            ) : (
-              <>
-                <th className="px-2 py-2 text-right font-medium">G</th>
-                <th className="px-2 py-2 text-right font-medium">A</th>
-                <th className="px-2 py-2 text-right font-medium">PTS</th>
-                <th className="px-2 py-2 text-right font-medium">Hits</th>
-                <th className="px-2 py-2 text-right font-medium">Blk</th>
-              </>
-            )}
-            <th className="px-2 py-2 text-right font-medium">Fpts/GP</th>
-          </tr>
-        </thead>
-        <tbody>
-          {detail.pastSeasons.map((s) => (
-            <tr key={s.season} className="border-b border-zinc-800/70 last:border-b-0">
-              <td className="px-2 py-2 font-medium text-white">{s.season}</td>
-              <td className="px-2 py-2 text-zinc-400">{s.team}</td>
-              <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.gp}</td>
-              {isGoalie ? (
-                <>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.wins}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.saves}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.ga}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.shutouts}</td>
-                </>
-              ) : (
-                <>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.g}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.a}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.pts}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.hits}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-zinc-300">{s.blk}</td>
-                </>
-              )}
-              <td className="px-2 py-2 text-right tabular-nums font-semibold text-lime-400">{s.fptsPerGame}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
+function TeamTab({ detail, player, onSelectPlayer }: { detail: ReturnType<typeof getPlayerDetail>; player: PlayerDialogTarget; onSelectPlayer?: (player: PlayerDialogTarget) => void }) { return <div className="space-y-4"><div className="flex gap-2 overflow-x-auto">{detail.teamRanks.map((rank) => <span key={rank.label} className="rounded-full bg-[#172338] px-3 py-1.5 text-[10px] font-black text-[#8ba0c7]">{rank.label} <b className="text-white">{rank.value}</b></span>)}</div><Card><p className="mb-3 text-[10px] font-black uppercase text-[#5e7090]">NHL Depth Chart · {player.team}</p>{detail.depthChart.map((line) => <div key={line.line} className="mb-3"><p className="mb-1 text-[9px] font-black text-[#5e7090]">{line.line}</p><div className={cn("grid gap-1", line.slots.length >= 5 ? "grid-cols-5" : line.slots.length === 4 ? "grid-cols-4" : "grid-cols-3")}>{line.slots.map((slot) => <button key={`${line.line}-${slot.label}-${slot.name}`} type="button" onClick={() => { if (slot.name === player.name) return; const position = slot.label === "LD" || slot.label === "RD" ? "D" : slot.label === "STARTER" || slot.label === "BACKUP" ? "G" : slot.label === "LW" ? "LW" : slot.label === "RW" ? "RW" : "C"; onSelectPlayer?.({ ...player, name: slot.name, position }) }} className={cn("rounded-md border px-2 py-2 text-left text-[10px] font-bold transition-colors", slot.name === player.name ? "border-2 border-[#19ffff] bg-[#19ffff]/10 text-[#19ffff] shadow-[0_0_12px_rgba(25,255,255,0.4)]" : "border-[#263858] bg-[#0d1424] text-white hover:border-[#19ffff]/50")}>{slot.label}<span className="block truncate text-[9px] text-[#8ba0c7]">{slot.name}</span></button>)}</div></div>)}</Card></div> }
 
-const GRID_COLS: Record<number, string> = {
-  2: "grid-cols-2",
-  3: "grid-cols-3",
-}
-
-function DepthChartTab({ detail, team }: { detail: ReturnType<typeof getPlayerDetail>; team: string }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <p className="text-xs text-zinc-500">Projected {team} starting lineup</p>
-      {detail.depthChart.map((line) => (
-        <div key={line.line} className="overflow-hidden rounded-xl border border-zinc-800">
-          <div className="border-b border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            {line.line}
-          </div>
-          <div className={cn("grid divide-x divide-zinc-800", GRID_COLS[line.slots.length] ?? "grid-cols-3")}>
-            {line.slots.map((slot) => (
-              <div
-                key={slot.label}
-                className={cn("px-3 py-2.5 text-center", slot.isTarget && "bg-cyan-400/10")}
-              >
-                <p className="text-[10px] font-bold text-zinc-500">{slot.label}</p>
-                <p className={cn("truncate text-sm font-medium", slot.isTarget ? "text-cyan-400" : "text-white")}>
-                  {slot.name}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function TransactionsTab({ detail }: { detail: ReturnType<typeof getPlayerDetail> }) {
-  return (
-    <div className="flex flex-col gap-2">
-      {detail.transactions.map((tx, i) => (
-        <div key={i} className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2.5">
-          <Badge variant="outline" className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px]">
-            {tx.type}
-          </Badge>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-zinc-200">{tx.description}</p>
-            <p className="mt-0.5 text-[11px] text-zinc-500">{tx.date}</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
+function HistoryTab({ detail }: { detail: ReturnType<typeof getPlayerDetail> }) { return <div className="space-y-3"><Card><p className="text-[10px] font-black uppercase text-[#5e7090]">Dynasty Acquisition</p><p className="mt-2 text-sm font-bold">{detail.transactions[0].description}</p><p className="mt-1 text-[10px] text-[#8ba0c7]">{detail.transactions[0].date}</p></Card><Card className="overflow-x-auto p-0"><table className="w-full min-w-[520px] text-left text-[10px]"><thead className="bg-[#172338] text-[#5e7090]"><tr>{["Season", "Team", "GP", "G", "A", "PTS", "FPTS", "Rank"].map((head) => <th key={head} className="px-2 py-2">{head}</th>)}</tr></thead><tbody>{detail.pastSeasons.map((season) => <tr key={season.season} className="border-t border-[#172338]"><td className="px-2 py-2">{season.season}</td><td className="px-2">{season.team}</td><td className="px-2">{season.gp}</td><td className="px-2">{season.g}</td><td className="px-2">{season.a}</td><td className="px-2">{season.pts}</td><td className="px-2 text-[#19ffff]">{season.fpts}</td><td className="px-2">{season.rank}</td></tr>)}</tbody></table></Card></div> }

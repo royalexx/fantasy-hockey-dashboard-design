@@ -1,109 +1,121 @@
 "use client"
 
-import { CheckIcon } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog"
+import { Shield, X } from "lucide-react"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import type { Player } from "@/lib/hockey-data"
 
-const positionLabels: Record<Player["position"], string> = {
-  C: "Center",
-  LW: "Left Wing",
-  RW: "Right Wing",
-  D: "Defense",
-  G: "Goalie",
+type StartingSlot = Extract<Player["slot"], "C" | "W" | "F" | "D" | "G">
+
+const slotColors: Record<StartingSlot | "BN" | "TAXI" | "IR", string> = {
+  C: "bg-[#3b4cca] text-white",
+  W: "bg-[#0d9488] text-white",
+  F: "bg-[#7c3aed] text-white",
+  D: "bg-[#b45309] text-white",
+  G: "bg-[#0284c7] text-white",
+  BN: "bg-[#1a253b] text-[#8ba0c7]",
+  TAXI: "bg-[#1a253b] text-[#8ba0c7]",
+  IR: "bg-[#3b1824] text-[#ff2a85]",
 }
 
-interface SlotOption {
-  slot: Player["slot"]
-  label: string
-  description: string
+const capacities: Record<StartingSlot, number> = { C: 3, W: 6, F: 3, D: 6, G: 2 }
+
+function eligibleStartingSlots(player: Player): StartingSlot[] {
+  if (player.position === "C") return ["C", "F"]
+  if (player.position === "LW" || player.position === "RW") return ["W", "F"]
+  return [player.position]
 }
 
-function getDestinationOptions(player: Player): SlotOption[] {
-  return [
-    {
-      slot: player.position,
-      label: `${positionLabels[player.position]} (Starting)`,
-      description: "Active lineup · counts toward this week's score",
-    },
-    {
-      slot: "BN",
-      label: "Bench",
-      description: "Roster spot · does not score",
-    },
-    {
-      slot: "TAXI",
-      label: "Taxi Squad",
-      description: "Eligible players under 80 NHL games played",
-    },
-    {
-      slot: "IR",
-      label: "Injured Reserve",
-      description: "For players currently marked out or day-to-day",
-    },
-  ]
+function eligibleTargets(player: Player | null, roster: Player[], emptySlot?: StartingSlot) {
+  const slots: Array<{ slot: Player["slot"]; label: string; target?: Player }> = []
+  if (emptySlot) {
+    return roster
+      .filter((candidate) => candidate.slot === "BN" && eligibleStartingSlots(candidate).includes(emptySlot))
+      .map((candidate) => ({ slot: emptySlot, label: "Empty starting slot", target: candidate }))
+  }
+  if (player?.slot === "BN") {
+    eligibleStartingSlots(player).forEach((slot) => {
+      const occupants = roster.filter((candidate) => candidate.slot === slot && candidate.id !== player.id)
+      if (occupants.length) {
+        occupants.forEach((target) => slots.push({ slot, label: "Swap starter", target }))
+      }
+      if (occupants.length < capacities[slot]) {
+        slots.push({ slot, label: "Starting slot" })
+      }
+    })
+  } else if (player) {
+    eligibleStartingSlots(player).forEach((slot) => {
+      roster.filter((candidate) => candidate.id !== player.id && candidate.slot === slot).forEach((target) => {
+        slots.push({ slot, label: "Starting slot", target })
+      })
+      if (roster.filter((candidate) => candidate.slot === slot).length < capacities[slot]) slots.push({ slot, label: "Empty starting slot" })
+    })
+    roster
+      .filter((candidate) => candidate.slot === "BN" && eligibleStartingSlots(candidate).some((slot) => eligibleStartingSlots(player).includes(slot)))
+      .forEach((target) => {
+        const destination = eligibleStartingSlots(player).find((slot) => eligibleStartingSlots(target).includes(slot))
+        if (destination) slots.push({ slot: destination, label: "Bench player", target })
+      })
+  }
+  if (player?.gamesPlayed != null && player.gamesPlayed < 80) slots.push({ slot: "TAXI", label: "Taxi Squad" })
+  if (player && (player.status === "DTD" || player.status === "O" || player.status === "IR")) slots.push({ slot: "IR", label: "Injured Reserve" })
+  return slots.filter((option, index, all) => all.findIndex((candidate) => candidate.slot === option.slot && candidate.target?.id === option.target?.id) === index)
+}
+
+function PlayerAvatar({ player }: { player: Player }) {
+  return <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#24375b] bg-[#1b2842] text-xs font-black text-[#19ffff]"><Shield className="size-4" /></div>
 }
 
 export function LineupSlotDialog({
   player,
+  emptySlot,
+  roster,
   open,
   onOpenChange,
   onMove,
 }: {
   player: Player | null
+  emptySlot?: StartingSlot | null
+  roster: Player[]
   open: boolean
   onOpenChange: (open: boolean) => void
-  onMove: (playerId: string, destSlot: Player["slot"]) => void
+  onMove: (playerId: string, destSlot: Player["slot"], targetPlayerId?: string) => void
 }) {
-  if (!player) return null
-
-  const options = getDestinationOptions(player)
-
+  if (!open || (!player && !emptySlot)) return null
+  const targets = eligibleTargets(player, roster, emptySlot ?? undefined)
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm border-zinc-800 bg-zinc-900 p-0 text-white">
-        <DialogHeader className="border-b border-zinc-800 px-5 py-4">
-          <DialogTitle className="text-base font-semibold text-white">Move {player.name}</DialogTitle>
-          <DialogDescription className="text-xs text-zinc-500">
-            Choose where to place this player. Moving into a full starting slot will bench the current starter.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex flex-col gap-2 p-4">
-          {options.map((option) => {
-            const isCurrent = option.slot === player.slot
-            return (
-              <button
-                key={option.slot}
-                type="button"
-                disabled={isCurrent}
-                onClick={() => {
-                  onMove(player.id, option.slot)
-                  onOpenChange(false)
-                }}
-                className={cn(
-                  "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors",
-                  isCurrent
-                    ? "cursor-default border-cyan-400/40 bg-cyan-400/10"
-                    : "border-zinc-800 bg-zinc-800/40 hover:border-zinc-700 hover:bg-zinc-800",
-                )}
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white">{option.label}</p>
-                  <p className="mt-0.5 text-[11px] text-zinc-500">{option.description}</p>
-                </div>
-                {isCurrent && <CheckIcon data-icon="inline-end" className="shrink-0 text-cyan-400" />}
-              </button>
-            )
-          })}
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="mx-auto max-w-[430px] rounded-t-2xl border-t border-[#1a263d] bg-[#0d1424] p-0 text-white">
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-[#5e7090]" />
+        <div className="flex items-center justify-between px-4 pb-3 pt-2">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#5e7090]">1/1 Choose player to swap</p>
+            <h2 className="text-lg font-black text-white">{player ? "Swap Player" : `Fill ${emptySlot} Slot`}</h2>
+          </div>
+          <button type="button" onClick={() => onOpenChange(false)} aria-label="Close swap player drawer" className="rounded-full p-2 text-[#8ba0c7] hover:bg-[#172338]"><X className="size-5" /></button>
         </div>
-      </DialogContent>
-    </Dialog>
+
+        <div className="mx-3 flex items-center gap-3 rounded-lg border border-[#1e2f4f] bg-[#141e33] p-3">
+          <span className={cn("flex size-8 items-center justify-center rounded-md text-[10px] font-black", slotColors[player?.slot ?? emptySlot ?? "BN"])}>{player?.slot ?? emptySlot}</span>
+          {player ? <PlayerAvatar player={player} /> : <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-[#34476a] text-[#5e7090]">+</div>}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-black text-white">{player?.name ?? `Empty ${emptySlot} starter`}</p>
+            <p className="truncate text-[11px] text-[#5e7090]">{player ? `${player.team} · ${player.opponent}` : "Select an eligible bench player"}</p>
+          </div>
+          {player && <span className="text-sm font-black tabular-nums text-white">proj {player.projPts.toFixed(1)}</span>}
+        </div>
+
+        <div className="max-h-[45vh] overflow-y-auto px-3 pb-5">
+          <p className="px-1 py-2 text-[10px] font-black uppercase tracking-wider text-[#5e7090]">Eligible swap targets</p>
+          {targets.map((option, index) => (
+            <button key={`${option.slot}-${option.target?.id ?? index}`} type="button" onClick={() => { if (player) onMove(player.id, option.slot, option.target?.id); else if (option.target) onMove(option.target.id, option.slot); onOpenChange(false) }} className="mb-1 flex w-full items-center gap-3 rounded-lg border border-[#172338] bg-[#111c30] p-3 text-left transition-colors hover:bg-[#172338]">
+              <span className={cn("flex size-7 items-center justify-center rounded-md text-[10px] font-black", slotColors[option.slot as keyof typeof slotColors])}>{option.slot}</span>
+              {option.target ? <><PlayerAvatar player={option.target} /><span className="min-w-0 flex-1"><b className="block truncate text-sm text-white">{option.target.name}</b><small className="text-[10px] text-[#5e7090]">{option.target.team} · {option.target.opponent}</small></span><span className="text-xs font-black text-white">proj {option.target.projPts.toFixed(1)}</span></> : <span className="flex-1 text-sm font-bold text-white">{option.label}</span>}
+            </button>
+          ))}
+          {!targets.length && <p className="rounded-lg border border-dashed border-[#34476a] px-3 py-5 text-center text-xs text-[#5e7090]">No eligible swap targets</p>}
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }
